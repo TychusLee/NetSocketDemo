@@ -20,7 +20,6 @@ struct TCPHeader {
 };
 
 struct IPHeader {
-    unsigned char version;
     unsigned char headerLen;
     unsigned char serveType;
     unsigned short totalLen;
@@ -37,8 +36,8 @@ void *start(void *);
 
 class TCPSniffer {
     int snifferfd;
-    TCPHeader tcpHeader;
-    IPHeader ipHeader;
+    TCPHeader *tcpHeader;
+    IPHeader *ipHeader;
     char data[_BUF_SIZE];
 public:
     explicit TCPSniffer();

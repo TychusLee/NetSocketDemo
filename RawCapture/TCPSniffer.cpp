@@ -34,38 +34,42 @@ void TCPSniffer::start() {
         catIP();
         sockaddr_in test;
         inet_aton("127.0.0.1", &test.sin_addr);
-        //按IP过滤
-        if (ipHeader.dIP != test.sin_addr.s_addr || ipHeader.sIP != test.sin_addr.s_addr) continue;
-        test.sin_addr.s_addr = ipHeader.sIP;
+        test.sin_addr.s_addr = ipHeader->sIP;
         cout << inet_ntoa(test.sin_addr) << "->";
-        test.sin_addr.s_addr = ipHeader.dIP;
+        test.sin_addr.s_addr = ipHeader->dIP;
         cout << inet_ntoa(test.sin_addr) << endl;
         inet_aton("127.0.0.1", &test.sin_addr);
         //分离TCP首部
         catTCP();
+        int ipHeaderLen = (ipHeader->headerLen & 15) * 4;
+        int tcpHeaderLen = tcpHeader->headerLen >> 4 << 2;
+        int totalLen = ntohs(ipHeader->totalLen);
+        cout << ntohs(tcpHeader->sPort) << "->" << ntohs(tcpHeader->dPort) << endl;
+        cout << ipHeaderLen << endl;
+        cout << tcpHeaderLen << endl;
+        cout << totalLen << endl;
+        //按IP过滤
+        if (ipHeader->dIP != test.sin_addr.s_addr || ipHeader->sIP != test.sin_addr.s_addr) continue;
         //按端口过滤
-        if (tcpHeader.sPort != htons(12127) && tcpHeader.dPort != htons(12127)) continue;
-        cout << ntohs(tcpHeader.sPort) << "->" << ntohs(tcpHeader.dPort) << endl;
-        cout << ipHeader.totalLen << endl;
-        cout << ipHeader.totalLen - tcpHeader.headerLen - ipHeader.headerLen << endl;
+        if (tcpHeader->sPort != htons(12127) && tcpHeader->dPort != htons(12127)) continue;
         //按应用层数据过滤
-        if (ipHeader.totalLen - tcpHeader.headerLen - ipHeader.headerLen != 4) continue;
+        if (totalLen - tcpHeaderLen - ipHeaderLen != 4) continue;
         //输出应用层数据
         cout << "-------------------packet--------------------" << endl;
         cout << "------------------Network--------------------" << endl;
         sockaddr_in trans;
-        trans.sin_addr.s_addr = ipHeader.sIP;
+        trans.sin_addr.s_addr = ipHeader->sIP;
         cout << "     Source: " << inet_ntoa(trans.sin_addr) << endl;
-        trans.sin_addr.s_addr = ipHeader.dIP;
+        trans.sin_addr.s_addr = ipHeader->dIP;
         cout << "Destination: " << inet_ntoa(trans.sin_addr) << endl;
         cout << "--------------Transportation----------------" << endl;
-        cout << "     Source: " << ntohs(tcpHeader.sPort) << endl;
-        cout << "Destination: " << ntohs(tcpHeader.dPort) << endl;
+        cout << "     Source: " << ntohs(tcpHeader->sPort) << endl;
+        cout << "Destination: " << ntohs(tcpHeader->dPort) << endl;
         cout << "----------------Application-----------------" << endl;
         time_t serverTime;
-        memcpy(&serverTime, data + ipHeader.headerLen + tcpHeader.headerLen, 4);
+        memcpy(&serverTime, data + ipHeaderLen + tcpHeaderLen, 4);
         cout << ctime(&serverTime) << endl;
-        if (!ipHeader.headerLen) break;
+        if (!ipHeader->headerLen) break;
     }
 }
 
@@ -76,36 +80,12 @@ int TCPSniffer::catIP() {
         perror("recvIPHeader");
         return -1;
     }
-    //按字节拷贝分离出IP首部
-    memcpy(&ipHeader.headerLen, data, 1);
-    ipHeader.version = ipHeader.headerLen >> 4;
-    ipHeader.headerLen = (ipHeader.headerLen & 15) * 4;
-    memcpy(&ipHeader.serveType, data + 1, 1);
-    memcpy(&ipHeader.totalLen, data + 2, 2);
-    ipHeader.totalLen = ntohs(ipHeader.totalLen);
-    memcpy(&ipHeader.packetID, data + 4, 2);
-    memcpy(&ipHeader.sliceInfo, data + 6, 2);
-    memcpy(&ipHeader.TTL, data + 8, 1);
-    memcpy(&ipHeader.protocolType, data + 9, 1);
-    memcpy(&ipHeader.sum, data + 10, 2);
-    memcpy(&ipHeader.sIP, data + 12, 4);
-    memcpy(&ipHeader.dIP, data + 16, 4);
+    ipHeader = (IPHeader *) data;
     return 0;
 }
 
 int TCPSniffer::catTCP() {
-    //从TCP首部位置开始，按字节拷贝，分理出TCP首部
-    char *TCPpacket = data + ipHeader.headerLen;
-    memcpy(&tcpHeader.sPort, TCPpacket, 2);
-    memcpy(&tcpHeader.dPort, TCPpacket + 2, 2);
-    memcpy(&tcpHeader.seq, TCPpacket + 4, 4);
-    memcpy(&tcpHeader.ack, TCPpacket + 8, 4);
-    memcpy(&tcpHeader.headerLen, TCPpacket + 12, 1);
-    tcpHeader.headerLen = tcpHeader.headerLen >> 4 << 2;
-    memcpy(&tcpHeader.flag, TCPpacket + 13, 1);
-    memcpy(&tcpHeader.win, TCPpacket + 14, 2);
-    memcpy(&tcpHeader.sum, TCPpacket + 16, 2);
-    memcpy(&tcpHeader.urp, TCPpacket + 18, 2);
+    tcpHeader = (TCPHeader *) (data + (ipHeader->headerLen & 15) * 4);
     return 0;
 }
 
