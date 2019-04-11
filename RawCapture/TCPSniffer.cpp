@@ -20,7 +20,6 @@ int TCPSniffer::sListen() {
         perror("socket");
         return -1;
     }
-    bool flag = true;
     return 0;
 }
 
